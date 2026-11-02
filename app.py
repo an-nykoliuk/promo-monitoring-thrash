@@ -14,6 +14,33 @@ import pandas as pd
 import requests
 import streamlit as st
 
+
+
+import streamlit as st
+
+st.markdown(
+    """
+    <style>
+    /* 1. Завантажуємо JetBrains Mono з Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+    /* 2. Призначення шрифту JetBrains Mono лише для текстових блоків */
+    html, body, p, h1, h2, h3, h4, h5, h6, li, a, label, input, textarea, button, select, div[role="radiogroup"] {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+
+    /* 3. Гарантуємо, що іконки (SVG та іконки Streamlit) не будуть зачіпатися шрифтом */
+    [data-testid="stIcon"],
+    [data-testid="stIcon"] *,
+    .material-symbols-outlined,
+    svg {
+        font-family: inherit;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 BASE_URL = "https://apiua.omprice.com"
 CACHE_DIR = Path(".cache")
 CACHE_DIR.mkdir(exist_ok=True)
@@ -285,19 +312,19 @@ shops_info = {r.id: {"network": r.network, "name": r.name} for r in shops_df.ite
 
 with st.sidebar:
     st.header("Налаштування")
-    maudau_pattern = st.text_input("Назва мережі «maudau» (містить)", value="maudau")
+    maudau_pattern = st.text_input("Назва «maudau» в омні", value="maudau")
     exclude_networks = st.multiselect(
         "Виключити мережі зі зведеної", sorted(shops_df["network"].unique()),
-        help="Наприклад, власна мережа, якщо вона є серед вибраних філій.")
+        help="Ці мережі не потраплять у звіт")
     use_cache = st.checkbox("Кешувати завершені дні на диск", value=True,
-                            help="Кеш працює по парах «день + магазин + артикул»: інший список артикулів "
-                                 "довантажує лише нові. Сьогоднішній день не кешується.")
+                            help="Кеш працює по парах «день + магазин + артикул», інший список артикулів "
+                                 "довантажує лише нові.")
     if st.button("🗑️ Очистити кеш"):
         shutil.rmtree(CACHE_DIR, ignore_errors=True)
         st.success("Кеш очищено")
-    top_n = st.number_input("Скільки конкурентів показувати (без maudau)", 1, 10, 2,
-                            help="Беруться N найдешевших промо-цін від різних мереж.")
-    poll = st.number_input("Інтервал опитування статусу, с", 5, 120, 15)
+    top_n = st.number_input("Скільки конкурентів показувати", 1, 10, 2,
+                            )
+    poll = st.number_input("Інтервал статусу, с", 5, 120, 15)
 
 col_a, col_b = st.columns([1, 1])
 with col_a:
@@ -312,7 +339,7 @@ with col_b:
                            format="DD.MM.YYYY")
     d0, d1 = (period[0], period[-1]) if isinstance(period, (tuple, list)) and period else (period, period)
     n_days = (d1 - d0).days + 1
-    st.caption(f"Днів у періоді: **{n_days}** — кожен день це окремий звіт, вони йдуть по черзі.")
+    st.caption(f"Днів у періоді: **{n_days}**")
 
     options = shops_df.sort_values(["network", "name"])["id"].tolist()
     labels = {r.id: f"{r.network} — {r.name}" for r in shops_df.itertuples()}
