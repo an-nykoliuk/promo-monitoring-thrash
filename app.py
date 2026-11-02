@@ -417,7 +417,16 @@ if res_state:
         t1, t2, t3 = st.tabs(["Промо моніторинг", "Очищені дані", "Сирі дані"])
         t1.dataframe(res["pivot"], width="stretch", hide_index=True)
         t2.dataframe(res["clean"], width="stretch", hide_index=True)
-        t3.dataframe(raw, width="stretch", hide_index=True)
+        with t3:
+            fmt = st.radio(
+                "Формат CSV", ["Excel (UA): роздільник «;», кома в числах", "Стандартний: «,» і крапка"],
+                horizontal=True, key="csv_fmt")
+            ua = fmt.startswith("Excel")
+            csv_text = raw.to_csv(index=False, sep=";" if ua else ",", decimal="," if ua else ".")
+            st.download_button(
+                "⬇️ Завантажити сирі дані (CSV)", data=("\ufeff" + csv_text).encode("utf-8"),
+                file_name=f"raw_prices_{res_state['period']}.csv", mime="text/csv")
+            st.dataframe(raw, width="stretch", hide_index=True)
         if no_promo:
             with st.expander(f"Артикули без промо в періоді ({len(no_promo)})"):
                 st.write(", ".join(no_promo))
