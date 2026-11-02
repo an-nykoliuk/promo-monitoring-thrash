@@ -1,3 +1,4 @@
+import hmac
 import io
 import json
 import os
@@ -12,9 +13,6 @@ from urllib.parse import urlencode
 import pandas as pd
 import requests
 import streamlit as st
-from dotenv import load_dotenv
-
-load_dotenv()  # підхоплює .env з поточної папки (де запускаєте streamlit)
 
 BASE_URL = "https://apiua.omprice.com"
 CACHE_DIR = Path(".cache")
@@ -178,9 +176,11 @@ def build_monitoring(raw: pd.DataFrame, articles: list[str], maudau_pattern: str
     if exclude_networks:
         promo = promo[~promo["Мережа"].fillna("").isin(exclude_networks)]
 
-    # найнижчі ціни вгору, при рівних цінах — найсвіжіша дата
-    promo = promo.sort_values(["Ціна промо", "Дата"], ascending=[True, False])
-    # один запис на «артикул + мережа» (найнижча промо-ціна за період)
+    # 1) найсвіжіші дати вгору
+    promo = promo.sort_values("Дата", ascending=False, kind="stable")
+    # 2) найнижчі ціни вгору (стабільне сортування: при рівних цінах лишається порядок за датою)
+    promo = promo.sort_values("Ціна промо", ascending=True, kind="stable")
+    # 3) прибираємо дублі по артикулу і мережі — лишається верхній рядок
     promo = promo.drop_duplicates(["Наш артикул", "Мережа"], keep="first")
 
     if maudau_pattern:
@@ -251,9 +251,28 @@ def to_excel(res) -> bytes:
 st.set_page_config(page_title="Промо моніторинг", page_icon="🏷️", layout="wide")
 st.title("🏷️ Промо моніторинг")
 
-token = os.environ.get("API_KEY") or os.environ.get("KEY")
+def get_secret(name: str):
+    # спочатку .streamlit/secrets.toml (локально) або Secrets у Streamlit Cloud, потім змінні середовища
+    try:
+        value = st.secrets.get(name)
+    except Exception:          # secrets.toml відсутній
+        value = None
+    return value or os.environ.get(name)
+
+
+# Необов'язковий захист паролем: додайте APP_PASSWORD у secrets, і без нього застосунок не відкриється
+app_password = get_secret("APP_PASSWORD")
+if app_password:
+    entered = st.text_input("Пароль", type="password")
+    if not entered or not hmac.compare_digest(str(entered), str(app_password)):
+        if entered:
+            st.error("Невірний пароль")
+        st.stop()
+
+token = get_secret("API_KEY")
 if not token:
-    st.error("Не знайдено токен: додайте `API_KEY=...` у файл `.env` поруч із `app.py` (або в змінні середовища) і перезапустіть застосунок.")
+    st.error("Не знайдено токен: додайте `API_KEY = \"...\"` у `.streamlit/secrets.toml` "
+             "(локально) або в Settings → Secrets (Streamlit Cloud) і перезапустіть застосунок.")
     st.stop()
 
 try:
@@ -282,7 +301,7 @@ with st.sidebar:
 
 col_a, col_b = st.columns([1, 1])
 with col_a:
-    articles_text = st.text_area("Наші кастомні артикули (вставте з буфера: Ctrl+V)", height=220,
+    articles_text = st.text_area("Артикули (вставте з буфера: Ctrl+V)", height=220,
                                  placeholder="365571\n365572\n519087\n…")
     articles = parse_articles(articles_text)
     st.caption(f"Розпізнано артикулів: **{len(articles)}**")
